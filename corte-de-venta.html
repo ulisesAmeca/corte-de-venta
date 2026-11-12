@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Corte de venta</title>
+<style>
+:root{--bg:#f3f6f4;--card:#fff;--ink:#14231c;--mute:#5d6f66;--line:#d9e2dd;--up:#157a4a;--down:#b8372e;--acc:#1d4e3b;--bar:#9cc7b3;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1713;--card:#17221c;--ink:#e6efe9;--mute:#97aaa0;--line:#2a3a31;--up:#4cc98a;--down:#f0786d;--acc:#7fd1ae;--bar:#2f5a48;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1713;--card:#17221c;--ink:#e6efe9;--mute:#97aaa0;--line:#2a3a31;--up:#4cc98a;--down:#f0786d;--acc:#7fd1ae;--bar:#2f5a48;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;line-height:1.45}
+main{max-width:920px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.6rem;margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--mute);margin:0 0 18px}
+.sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.box small{color:var(--mute);display:block}
+.box b{font-size:1.35rem}
+.main b{color:var(--acc);font-size:1.7rem}
+.pos{color:var(--up)}.neg{color:var(--down)}
+form{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:16px}
+label{display:flex;flex-direction:column;font-size:.85rem;color:var(--mute);gap:4px}
+input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px}
+input:focus,button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+button{font:inherit;cursor:pointer;border-radius:6px;border:0;padding:9px 14px;background:var(--acc);color:var(--bg);font-weight:600}
+form button{align-self:end}
+button.ghost{background:none;color:var(--down);padding:4px 8px;border:1px solid var(--line)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:16px}
+.panel h2{font-size:1.05rem;margin:0 0 8px}
+.tabs{display:flex;gap:6px;margin-bottom:8px}
+.tabs button{background:var(--bg);color:var(--ink);border:1px solid var(--line);font-weight:400}
+.tabs button.on{background:var(--acc);color:var(--bg)}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:560px}
+th,td{padding:8px 6px;text-align:right;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--mute);font-weight:600;font-size:.85rem}
+.empty{color:var(--mute);padding:20px;text-align:center}
+svg text{fill:var(--mute);font-size:11px;font-family:inherit}
+</style>
+</head>
+<body>
+<main>
+<h1>Corte de venta</h1>
+<p class="sub">Registra cuánto vendiste y cuánto gastaste cada día. Tus datos se guardan en este navegador.</p>
+
+<div class="sum">
+  <div class="box"><small>Ventas totales</small><b id="tv">$0.00</b></div>
+  <div class="box"><small>Gastos totales</small><b id="tg">$0.00</b></div>
+  <div class="box main"><small>Ganancia</small><b id="tp">$0.00</b></div>
+  <div class="box"><small>Cambio vs. corte anterior</small><b id="tc">—</b></div>
+</div>
+
+<form id="f">
+  <label>Fecha<input type="date" id="fecha" required></label>
+  <label>Ventas (lo que ganaste)<input type="number" id="venta" min="0" step="0.01" placeholder="0.00" required></label>
+  <label>Gastos (lo que gastaste)<input type="number" id="gasto" min="0" step="0.01" placeholder="0.00" required></label>
+  <label>Nota (opcional)<input type="text" id="nota" maxlength="60" placeholder="Ej. compra de mercancía"></label>
+  <button type="submit">Guardar corte</button>
+</form>
+
+<div class="panel">
+  <h2>Evolución</h2>
+  <div class="tabs" role="tablist">
+    <button class="on" data-m="venta">Ventas</button>
+    <button data-m="gasto">Gastos</button>
+    <button data-m="ganancia">Ganancia</button>
+  </div>
+  <div class="scroll"><div id="chart"></div></div>
+</div>
+
+<div class="panel">
+  <h2>Historial de cortes</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Fecha</th><th>Ventas</th><th>Gastos</th><th>Ganancia</th><th>Cambio ventas</th><th></th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+  <div class="empty" id="empty">Aún no hay cortes. Captura el primero arriba.</div>
+</div>
+</main>
+
+<script>
+(function(){
+var KEY="corte-venta-v1",data=[],metric="venta";
+try{var s=localStorage.getItem(KEY);if(s)data=JSON.parse(s)||[]}catch(e){data=[]}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){}}
+function $(i){return document.getElementById(i)}
+function money(n){return n.toLocaleString("es-MX",{style:"currency",currency:"MXN"})}
+function dfmt(d){var p=d.split("-");return p[2]+"/"+p[1]+"/"+p[0]}
+function pct(a,b){if(!b)return null;return (a-b)/b*100}
+function pctTxt(p){if(p===null)return "—";return (p>=0?"▲ +":"▼ ")+p.toFixed(1)+"%"}
+function cls(p,inv){if(p===null||p===0)return "";return (p>0)!==!!inv?"pos":"neg"}
+$("fecha").value=new Date().toISOString().slice(0,10);
+
+function sorted(){return data.slice().sort(function(a,b){return a.fecha<b.fecha?-1:a.fecha>b.fecha?1:a.id-b.id})}
+
+function render(){
+  var d=sorted(),tv=0,tg=0;
+  d.forEach(function(x){tv+=x.venta;tg+=x.gasto});
+  $("tv").textContent=money(tv);$("tg").textContent=money(tg);
+  var tp=$("tp");tp.textContent=money(tv-tg);tp.className=(tv-tg)<0?"neg":"";
+  var tc=$("tc");
+  if(d.length>1){var p=pct(d[d.length-1].venta,d[d.length-2].venta);tc.textContent=pctTxt(p);tc.className=cls(p)}
+  else{tc.textContent="—";tc.className=""}
+  var h="";
+  for(var i=d.length-1;i>=0;i--){
+    var x=d[i],g=x.venta-x.gasto,p=i>0?pct(x.venta,d[i-1].venta):null;
+    h+="<tr><td>"+dfmt(x.fecha)+(x.nota?"<br><small style='color:var(--mute)'>"+esc(x.nota)+"</small>":"")+"</td><td>"+money(x.venta)+"</td><td>"+money(x.gasto)+"</td><td class='"+(g<0?"neg":"pos")+"'>"+money(g)+"</td><td class='"+cls(p)+"'>"+pctTxt(p)+"</td><td><button class='ghost' data-del='"+x.id+"' aria-label='Borrar corte'>Borrar</button></td></tr>";
+  }
+  $("rows").innerHTML=h;
+  $("empty").style.display=d.length?"none":"block";
+  chart(d);
+}
+function esc(t){return String(t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+
+function chart(d){
+  var el=$("chart");
+  if(d.length<2){el.innerHTML="<div class='empty'>Agrega al menos 2 cortes para ver la gráfica.</div>";return}
+  var v=d.map(function(x){return metric==="ganancia"?x.venta-x.gasto:x[metric]});
+  var W=Math.max(640,d.length*56),H=260,L=58,R=14,T=16,B=36;
+  var mn=Math.min(0,Math.min.apply(null,v)),mx=Math.max(1,Math.max.apply(null,v));
+  var rng=mx-mn,bw=(W-L-R)/d.length;
+  function y(n){return T+(H-T-B)*(1-(n-mn)/rng)}
+  var s="<svg viewBox='0 0 "+W+" "+H+"' width='"+W+"' height='"+H+"' role='img' aria-label='Gráfica de "+metric+"'>";
+  for(var k=0;k<=4;k++){var val=mn+rng*k/4,yy=y(val);
+    s+="<line x1='"+L+"' x2='"+(W-R)+"' y1='"+yy+"' y2='"+yy+"' stroke='var(--line)'/><text x='"+(L-6)+"' y='"+(yy+4)+"' text-anchor='end'>"+Math.round(val).toLocaleString("es-MX")+"</text>"}
+  var pts=[];
+  d.forEach(function(x,i){
+    var cx=L+bw*i+bw/2,top=y(Math.max(v[i],0)),bot=y(Math.min(v[i],0));
+    s+="<rect x='"+(cx-bw*.3)+"' y='"+top+"' width='"+bw*.6+"' height='"+Math.max(1,bot-top)+"' fill='var(--bar)' rx='3'><title>"+dfmt(x.fecha)+": "+money(v[i])+"</title></rect>";
+    pts.push(cx+","+y(v[i]));
+    s+="<text x='"+cx+"' y='"+(H-B+16)+"' text-anchor='middle'>"+dfmt(x.fecha).slice(0,5)+"</text>";
+  });
+  s+="<polyline points='"+pts.join(" ")+"' fill='none' stroke='var(--acc)' stroke-width='2.5'/>";
+  d.forEach(function(x,i){
+    var cx=L+bw*i+bw/2,cy=y(v[i]);
+    s+="<circle cx='"+cx+"' cy='"+cy+"' r='4' fill='var(--acc)'/>";
+    if(i>0){var p=pct(v[i],v[i-1]);
+      if(p!==null){var up=metric==="gasto"?p<0:p>=0;
+        s+="<text x='"+cx+"' y='"+(cy-9)+"' text-anchor='middle' style='fill:"+(up?"var(--up)":"var(--down)")+";font-weight:700'>"+(p>=0?"▲":"▼")+Math.abs(p).toFixed(0)+"%</text>"}}
+  });
+  s+="</svg>";
+  el.innerHTML=s;
+}
+
+$("f").addEventListener("submit",function(e){
+  e.preventDefault();
+  data.push({id:Date.now(),fecha:$("fecha").value,venta:parseFloat($("venta").value)||0,gasto:parseFloat($("gasto").value)||0,nota:$("nota").value.trim()});
+  save();$("venta").value="";$("gasto").value="";$("nota").value="";render();$("venta").focus();
+});
+$("rows").addEventListener("click",function(e){
+  var id=e.target.getAttribute("data-del");
+  if(id&&confirm("¿Borrar este corte?")){data=data.filter(function(x){return String(x.id)!==id});save();render()}
+});
+document.querySelector(".tabs").addEventListener("click",function(e){
+  var m=e.target.getAttribute("data-m");if(!m)return;metric=m;
+  document.querySelectorAll(".tabs button").forEach(function(b){b.classList.toggle("on",b===e.target)});render();
+});
+render();
+})();
+</script>
+</body>
+</html>
